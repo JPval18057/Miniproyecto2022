@@ -7,7 +7,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
-
+#include <ArduinoJson.h>
 
 
 //****************************************************************************************
@@ -26,7 +26,7 @@ unsigned long currentMillis = 0; //Stores the current time
 unsigned long previousMillis = 0;        // will store last time LED was updated
 
 // constants won't change
-const long interval = 500;           // interval at which to blink (milliseconds)
+const long interval = 1000;           // interval at which to blink (milliseconds)
 
 //Function declaration
 void blinkled(void);
@@ -43,6 +43,10 @@ const char* password = "miniproyecto"; // opcional softAP()
 
 //FUNCTIONS
 void Webserversetup();
+
+//JSON PROTOCOL
+StaticJsonDocument<200> doc_tx;
+StaticJsonDocument<200> doc_rx;
 
 //WEBSERVER PORTS
 WebServer  server(80);  //80 is de default port for webservers
@@ -93,11 +97,13 @@ void loop() {
     digitalWrite(ledPin, ledState);
     
     //WEBSOCKET TEST
-    String str = String(random(100));
-    int str_len = str.length() + 1;
-    char char_array[str_len];
-    str.toCharArray(char_array, str_len);
-    webSocket.broadcastTXT(char_array);
+    String jsonString ="";
+    JsonObject object = doc_tx.to<JsonObject>();
+    object["rand1"] = random(100);
+    object["rand2"] = random(100);
+    serializeJson(doc_tx, jsonString); //WE USE DOC_TX BECAUSE WE ARE SENDING FROM ESP32 TO WEBPAGE
+    Serial.println(jsonString);
+    webSocket.broadcastTXT(jsonString);
     // save the last time you blinked the LED
     // At the end to have the real time
     previousMillis = currentMillis;
@@ -132,7 +138,7 @@ void Webserversetup(){
 }
 
 //WEBPAGE TO UPLOAD THE FIRST TIME
-String webpage = "<!DOCTYPE html>\n<html>\n<head>\n<title>ESP SERVER</title>\n</head>\n<body style='background-color: #EEEEEE;'>\n\n<span style='color: #003366;'>\n\n<h1>Lets generate a random number</h1>\n<p>The random number is: <span id = 'rand'>-</span></p>\n<p><button type='button' id='BTN_SEND_BACK'>\nSend info to ESP32\n</button></p>\n</span>\n\n<script>\nvar Socket;\ndocument.getElementById('BTN_SEND_BACK').addEventListener('click', button_send_back);\nfunction init() {\n\tSocket = new WebSocket('ws://' + window.location.hostname + ':81/');\n\tSocket.onmessage = function(event) {\n\t\tprocessCommand(event);\n\t};\n}\nfunction button_send_back(){\n\tSocket.send('Sending back some random stuff');\n}\nfunction processCommand(event){\n\tdocument.getElementById('rand').innerHTML = event.data;\n\tconsole.log(event.data);\n}\nwindow.onload = function(event) {\n\tinit();\n}\n</script>\n\n</body>\n</html>";
+String webpage = "<!DOCTYPE html>\n<html>\n<head>\n<title>ESP SERVER</title>\n</head>\n<body style='background-color: #EEEEEE;'>\n\n<span style='color: #003366;'>\n\n<h1>Lets generate a random number</h1>\n<p>The first random number is: <span id = 'rand1'>-</span></p>\n<p>The second random number is: <span id = 'rand2'>-</span></p>\n<p><button type='button' id='BTN_SEND_BACK'>\nSend info to ESP32\n</button></p>\n</span>\n\n<script>\nvar Socket;\ndocument.getElementById('BTN_SEND_BACK').addEventListener('click', button_send_back);\nfunction init() {\n\tSocket = new WebSocket('ws://' + window.location.hostname + ':81/');\n\tSocket.onmessage = function(event) {\n\t\tprocessCommand(event);\n\t};\n}\nfunction button_send_back(){\n\tvar guitar = {\n\tbrand: 'Gibson',\n\ttype: 'Les Paul Studio',\n\tyear: 2010,\n\tcolor: 'white'\n\t};\n\tSocket.send(JSON.stringify(guitar));\n}\nfunction processCommand(event){\n\tvar obj = JSON.parse(event.data);\t\n\tdocument.getElementById('rand1').innerHTML = obj.rand1;\n\tdocument.getElementById('rand2').innerHTML = obj.rand2;\n\tconsole.log(obj.rand1);\n\tconsole.log(obj.rand2);\n}\nwindow.onload = function(event) {\n\tinit();\n}\n</script>\n\n</body>\n</html>";
 
 //****************************************************************************************
 
@@ -160,10 +166,21 @@ void webSocketEvent(byte num, WStype_t type, uint8_t * payload, size_t length){
 
       break;
     case WStype_TEXT: //WHEN CLIENT SENDS DATA
-      for (int i = 0; i<length;i++){
-        Serial.print((char)payload[i]);
+      DeserializationError error = deserializeJson(doc_rx, payload);
+      if (error) {
+        Serial.println("Error, something went wrong...");
+        return;
+      } else {
+        const char* g_brand = doc_rx["brand"];
+        const char* g_type = doc_rx["type"];
+        const int g_year = doc_rx["year"];
+        const char* g_color = doc_rx["color"];
+        Serial.println("Received guitar info!");
+        Serial.println("Brand:"+String(g_brand));
+        Serial.println("Type:"+String(g_type));
+        Serial.println("Year:"+String(g_year));
+        Serial.println("Color:"+String(g_color));
       }
-      Serial.println("");
       break;
   }
 }
@@ -173,3 +190,4 @@ void webSocketEvent(byte num, WStype_t type, uint8_t * payload, size_t length){
 //PID CONTROLLERS
 
 //****************************************************************************************
+
