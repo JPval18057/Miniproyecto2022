@@ -6,7 +6,7 @@
 //Libraries
 #include <WiFi.h>
 #include <WebServer.h>
-
+#include <WebSocketsServer.h>
 
 
 
@@ -46,6 +46,7 @@ void Webserversetup();
 
 //WEBSERVER PORTS
 WebServer  server(80);  //80 is de default port for webservers
+WebSocketsServer webSocket = WebSocketsServer(81); //PORT 81 IS THE DEFAULT PORT FOR WS
 
 //****************************************************************************************
 //PID CONTROLLER
@@ -67,6 +68,7 @@ void setup() {
 void loop() {
   //VERY IMPORTANT FOR THE CORRECT BEHAVIOUR OF THE SERVER
   server.handleClient();
+  webSocket.loop();
   currentMillis = millis();
 
   //Blink BLUE BUILTIN LED
@@ -89,7 +91,13 @@ void loop() {
 
     // set the LED with the ledState of the variable:
     digitalWrite(ledPin, ledState);
-
+    
+    //WEBSOCKET TEST
+    String str = String(random(100));
+    int str_len = str.length() + 1;
+    char char_array[str_len];
+    str.toCharArray(char_array, str_len);
+    webSocket.broadcastTXT(char_array);
     // save the last time you blinked the LED
     // At the end to have the real time
     previousMillis = currentMillis;
@@ -107,8 +115,8 @@ void Webserversetup(){
   //WiFi.softAPConfig(ip, gateway, subnet);
   IPAddress ip = WiFi.softAPIP();
   
-  Serial.print("WEBSERVER NAME: ");
-  Serial.println(ssid);
+  //Serial.print("WEBSERVER NAME: ");
+  //Serial.println(ssid);
   Serial.print("IP ADDRESS: ");
   Serial.println(ip);
 
@@ -118,11 +126,13 @@ void Webserversetup(){
 
   //TURN ON THE SERVER
   server.begin();
+  webSocket.begin(); //START WEBSOCKETS
+  webSocket.onEvent(webSocketEvent);
   Serial.println("ACCESS POINT SERVER IS ON..."); //MESSAGE FOR THE USER
 }
 
 //WEBPAGE TO UPLOAD THE FIRST TIME
-String webpage = "<!DOCTYPE html>\n<html>\n<head>\n<title>ESP SERVER</title>\n</head>\n<body style='background-color: #EEEEEE;'>\n\n<span style='color: #003366;'>\n\n<h1>Lets generate a random number</h1>\n<p>The random number is: </p>\n\n</span>\n\n</body>\n</html>";
+String webpage = "<!DOCTYPE html>\n<html>\n<head>\n<title>ESP SERVER</title>\n</head>\n<body style='background-color: #EEEEEE;'>\n\n<span style='color: #003366;'>\n\n<h1>Lets generate a random number</h1>\n<p>The random number is: <span id = 'rand'>-</span></p>\n<p><button type='button' id='BTN_SEND_BACK'>\nSend info to ESP32\n</button></p>\n</span>\n\n<script>\nvar Socket;\ndocument.getElementById('BTN_SEND_BACK').addEventListener('click', button_send_back);\nfunction init() {\n\tSocket = new WebSocket('ws://' + window.location.hostname + ':81/');\n\tSocket.onmessage = function(event) {\n\t\tprocessCommand(event);\n\t};\n}\nfunction button_send_back(){\n\tSocket.send('Sending back some random stuff');\n}\nfunction processCommand(event){\n\tdocument.getElementById('rand').innerHTML = event.data;\n\tconsole.log(event.data);\n}\nwindow.onload = function(event) {\n\tinit();\n}\n</script>\n\n</body>\n</html>";
 
 //****************************************************************************************
 
@@ -139,11 +149,27 @@ void handleNotFound(){
   server.send(404, "text/plain", "Not found");
 }
 
+void webSocketEvent(byte num, WStype_t type, uint8_t * payload, size_t length){
+  switch (type) {
+    case WStype_DISCONNECTED: //CLIENT DISCONNECTS TO SERVER
+      Serial.println("Client DISConnected");
+      case WStype_CONNECTED: //CLIENT CONNECTS TO SERVER
+      break;
+    Serial.println("CLIENT CONNECTED");
+      // Add code to do more stuff if wanted
+
+      break;
+    case WStype_TEXT: //WHEN CLIENT SENDS DATA
+      for (int i = 0; i<length;i++){
+        Serial.print((char)payload[i]);
+      }
+      Serial.println("");
+      break;
+  }
+}
 //****************************************************************************************
 
 //****************************************************************************************
 //PID CONTROLLERS
 
 //****************************************************************************************
-
-
