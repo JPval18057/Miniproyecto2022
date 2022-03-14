@@ -1,0 +1,92 @@
+/******************************************************************************************************************************
+ * TITULO: Modo Soft Access Point  (AP)
+ * DESCRIPCION: Este es el segundo ejemplo para demostrar el modo punto de acceso (AP) de un ESP32, creando un servidor sencillo 
+ *              que nos permite controlar un relé un led en los GPIO 19 y 5. Parte de la serie ESP32 del canal jadsa tv
+ * CANAL YOUTUBE: https://www.youtube.com/c/jadsatv
+ * © 2020
+ *******************************************************************************************************************************/
+ 
+#include <WiFi.h>
+#include <WebServer.h>
+
+ 
+// Creamos nuestra propia red -> SSID & Password
+const char* ssid = "JadsaNet";  
+const char* password = "jadsa2020"; // opcional softAP()
+ 
+
+WebServer  server(80);  // puerto por defecto 80
+
+
+// hardware
+const byte ledPin = 19;
+const byte relayPin = 5;
+bool releState = false;
+
+
+void setup() {
+  
+  Serial.begin(115200);
+
+  // configuración de pines
+  pinMode(ledPin, OUTPUT);
+  pinMode(relayPin, OUTPUT);
+  digitalWrite(releState, HIGH); // desactivamos el rele;
+  delay(100);
+  
+  // Creamos el punto de acceso
+  WiFi.softAP(ssid, password); // Tiene mas parametros opcionales
+  //WiFi.softAPConfig(ip, gateway, subnet);
+  IPAddress ip = WiFi.softAPIP();
+  
+  Serial.print("Nombre de mi red esp32: ");
+  Serial.println(ssid);
+  Serial.print("La IP es: ");
+  Serial.println(ip);
+ 
+  server.on("/", handleConnectionRoot);
+  server.on("/relayOn", handleRelayOn);
+  server.on("/relayOff", handleRelayOff);
+  server.onNotFound(handleNotFound);
+
+
+  server.begin();
+  Serial.println("Servidor HTTP iniciado"); 
+}
+
+ 
+void loop() {
+  server.handleClient();
+  if(releState){
+    digitalWrite(ledPin, HIGH);
+    digitalWrite(relayPin, LOW);
+  }
+  else{
+    digitalWrite(ledPin, LOW);
+    digitalWrite(relayPin, HIGH);
+  }
+}
+
+
+// Nuestra respuesta en html
+String answer = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Relay Control | AP</title>\n\n<style>\nbody {\nmargin: 0px auto;\ntext-align: center;\nfont-family: Helvetica;\n}\n#title{\nmargin-top: 50px;\nmargin-bottom: 15px;\ncolor: rgb(14, 14, 14);\n}\n\n#subtitle{\nmargin-top: 0;\nmargin-bottom: 25px;\ncolor: dimgray;\n}\n\n.onBtn {\nbackground-color:#44c767;\nborder-radius:28px;\nborder:1px solid #18ab29;\ndisplay:inline-block;\ncursor:pointer;\ncolor:#ffffff;\nfont-family:Arial;\nfont-size:17px;\npadding:16px 35px;\ntext-decoration:none;\ntext-shadow:0px 1px 0px #2f6627;\nmargin-right: 50px;\n}\n.onBtn:hover {\nbackground-color: #04e335;\n}\n.onBtn:active {\nposition:relative;\ntop:1px;\n}\n\n.offBtn {\nbackground-color:#f05d67;\nborder-radius:28px;\nborder:1px solid #e84165;\ndisplay:inline-block;\ncursor:pointer;\ncolor:#ffffff;\nfont-family:Arial;\nfont-size:17px;\npadding:16px 35px;\ntext-decoration:none;\ntext-shadow:0px 1px 0px #7a1515;\n}\n.offBtn:hover {\nbackground-color:#f22954;\n}\n.offBtn:active {\nposition:relative;\ntop:1px;\n}\n\n    </style>\n\n</head>\n<body>\n<div>\n<h1 id=\"title\">SERVIDOR WEB ESP32</h1>\n<h3 id=\"subtitle\">Modo Estación (STA)</h3>\n</div>\n<a href=\"/relayOn\" class=\"onBtn\">ON</a>\n<a href=\"/relayOff\" class=\"offBtn\">OFF</a>\n\n</body>\n</html>";
+
+ 
+// Responder a la url raíz (root /)
+void handleConnectionRoot() {
+  server.send(200, "text/html", answer);
+}
+
+void handleRelayOn() {
+  releState = true;
+  server.send(200, "text/html", answer);
+}
+
+void handleRelayOff() {
+  releState = false;
+  server.send(200, "text/html", answer);
+}
+
+void handleNotFound(){
+  server.send(404, "text/plain", "Not found");
+}
