@@ -2,19 +2,36 @@
 <html>
 <head>
 <title>ESP SERVER</title>
+<script src="https://code.highcharts.com/highcharts.js"></script>
 </head>
 <body style='background-color: #EEEEEE;'>
 
 <span style='color: #003366;'>
 
-<h1>Lets generate a random number</h1>
-<p>The first random number is: <span id = 'rand1'>-</span></p>
-<p>The second random number is: <span id = 'rand2'>-</span></p>
+<h1>ESP32 WEBSERVER FOR MPU6050</h1>
+<p>Angulo normalizado eje y: <span id = 'rand1'>-</span></p>
+<p>Angulo normalizado eje x: <span id = 'rand2'>-</span></p>
+<p>Angulo normalizado eje z: <span id = 'rand3'>-</span></p>
+<h2>Gyro</h2>
+<p>Gyro x (rad/s): <span id = 'rand2'>-</span></p>
+<p>Gyro y (rad/s): <span id = 'rand2'>-</span></p>
+<p>Gyro z (rad/s): <span id = 'rand2'>-</span></p>
+<h1>Valores PID</h1>
+
+<form>
+  <label for="kp">Kp:</label>
+  <input type="number" id="kp" name="quantity" step="0.00001">
+  <label for="kd">Kd:</label>
+  <input type="number" id="kd" name="quantity" step="0.00001">
+  <label for="ki">Ki:</label>
+  <input type="number" id="ki" name="quantity" step="0.00001">
+</form>
+
 <p><button type='button' id='BTN_SEND_BACK'>
 Send info to ESP32
 </button></p>
 </span>
-
+//AJAX CODE TO SEND INFORMATION TO ESP32
 <script>
 var Socket;
 document.getElementById('BTN_SEND_BACK').addEventListener('click', button_send_back);
@@ -24,14 +41,21 @@ function init() {
 		processCommand(event);
 	};
 }
-function button_send_back(){
+function button_send_back(ev){
+	ev.preventDefault(); //To prevent the form from reloading and reseting the input boxes
 	var guitar = {
 	brand: 'Gibson',
 	type: 'Les Paul Studio',
 	year: 2010,
 	color: 'white'
 	};
-	Socket.send(JSON.stringify(guitar));
+	let PID = {
+		kp: document.getElementById('kp').value,
+		kd: document.getElementById('kd').value,
+		ki: document.getElementById('ki').value
+	};
+	Socket.send(JSON.stringify(PID));
+	console.log(PID);
 }
 function processCommand(event){
 	var obj = JSON.parse(event.data);	
@@ -43,6 +67,36 @@ function processCommand(event){
 window.onload = function(event) {
 	init();
 }
+</script>
+
+// IMU GRAPH
+<div id="container" style="width:50%; height:300px;"></div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+        const chart = Highcharts.chart('container', {
+            chart: {
+                type: 'line'
+            },
+            title: {
+                text: 'Angulo del balancin'
+            },
+            xAxis: {
+                categories: []
+            },
+            yAxis: {
+                title: {
+                    text: 'Ángulo (rad)'
+                }
+            },
+            series: [{
+                name: 'Eje x',
+                data: [1, 0, 4, 5, 1, 8]
+            }, {
+                name: 'Eje y',
+                data: [5, 7, 3, 7, 9, 3]
+            }]
+        });
+    });
 </script>
 
 </body>
