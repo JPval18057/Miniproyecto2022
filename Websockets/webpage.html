@@ -31,8 +31,14 @@
 Send info to ESP32
 </button></p>
 </span>
-//AJAX CODE TO SEND INFORMATION TO ESP32
+<!-- AJAX CODE TO SEND INFORMATION TO ESP32 -->
 <script>
+//INCOMING DATA ARRAY
+/*	This array has to go to local webpage storage to be used later in the graph
+ *	Then it needs to be downloadable
+ */
+let incoming_data = [];
+//WEBSOCKET CODE
 var Socket;
 document.getElementById('BTN_SEND_BACK').addEventListener('click', button_send_back);
 function init() {
@@ -61,42 +67,78 @@ function processCommand(event){
 	var obj = JSON.parse(event.data);	
 	document.getElementById('rand1').innerHTML = obj.rand1;
 	document.getElementById('rand2').innerHTML = obj.rand2;
-	console.log(obj.rand1);
-	console.log(obj.rand2);
+	//Put the incoming sensor values to an array for easier graphing
+	incoming_data.push(obj.rand1);
+	incoming_data.push(obj.rand2);
+	//console.log(incoming_data);
+	//console.log(obj.rand1);
+	//console.log(obj.rand2);
+	
+	//SAVING TO localStorage
+	//THE JSON OBJECT NEEDS TO BE A STRING
+	//REMEMBER TO PARSE IT WHEN YOU GET IT 
+	//let variable = localStorage.getItem("name_of_data");
+	//let object = JSON.parse(variable);
+	//NOW YOU CAN USE THE DATA INSIDE OF THE OBJECT IN YOUR CODE
+	localStorage.setItem("Data_esp", JSON.stringify(incoming_data));
 }
 window.onload = function(event) {
 	init();
 }
 </script>
 
-// IMU GRAPH
+<!-- // IMU GRAPH -->
 <div id="container" style="width:50%; height:300px;"></div>
 <script>
+let chart; //global chart
+let memory; //global memory
+let data; //global memory
+//ASK FOR DATA FROM localStorage EVERY SECOND
+setInterval(function requestData() {
+	memory = localStorage.getItem("Data_esp");
+	data = JSON.parse(memory);
+	let data_size = data.length - 1; //Size of the array
+	const point = data[data_size]; //Obtain the latest point in the graph
+	const series = chart.series[0],
+		shift = series.data.length > 20; //Start shifting data if there is more than 20 entrys
+		//THE NUMBER 20 IS THE NUMBER OF DATA SHOWN IN THE GRAPH
+		
+	//add the point to the graph
+	chart.series[0].addPoint(point, true, shift);
+	
+	console.log(data);
+}, 500);
+
+
 document.addEventListener('DOMContentLoaded', function () {
-        const chart = Highcharts.chart('container', {
+        chart = Highcharts.chart('container', {
             chart: {
-                type: 'line'
+                type: 'line',
+				zoomType: 'x'
             },
+			credits: {
+				enabled: false
+			}
+			,
             title: {
                 text: 'Angulo del balancin'
             },
             xAxis: {
-                categories: []
+                //categories: []
             },
             yAxis: {
                 title: {
-                    text: 'Ángulo (rad)'
+                    text: 'Angulo (rad)'
                 }
             },
             series: [{
-                name: 'Eje x',
-                data: [1, 0, 4, 5, 1, 8]
-            }, {
-                name: 'Eje y',
-                data: [5, 7, 3, 7, 9, 3]
+                name: 'Angulo (rad)',
+                data: [] //incoming_data
             }]
+			
         });
     });
+
 </script>
 
 </body>
