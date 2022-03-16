@@ -20,11 +20,11 @@
 
 <form>
   <label for="kp">Kp:</label>
-  <input type="number" id="kp" name="quantity" step="0.00001">
+  <input type="number" id="kp" name="quantity" step="0.000001">
   <label for="kd">Kd:</label>
-  <input type="number" id="kd" name="quantity" step="0.00001">
+  <input type="number" id="kd" name="quantity" step="0.000001">
   <label for="ki">Ki:</label>
-  <input type="number" id="ki" name="quantity" step="0.00001">
+  <input type="number" id="ki" name="quantity" step="0.000001">
 </form>
 
 <p><button type='button' id='BTN_SEND_BACK'>
@@ -100,14 +100,14 @@ setInterval(function requestData() {
 	let data_size = data.length - 1; //Size of the array
 	const point = data[data_size]; //Obtain the latest point in the graph
 	const series = chart.series[0],
-		shift = series.data.length > 20; //Start shifting data if there is more than 20 entrys
+		shift = series.data.length > 40; //Start shifting data if there is more than 20 entrys
 		//THE NUMBER 20 IS THE NUMBER OF DATA SHOWN IN THE GRAPH
 		
 	//add the point to the graph
 	chart.series[0].addPoint(point, true, shift);
 	
 	console.log(data);
-}, 500);
+}, 1000);
 
 
 document.addEventListener('DOMContentLoaded', function () {
