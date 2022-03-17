@@ -3,6 +3,10 @@
 <head>
 <title>ESP SERVER</title>
 <script src="https://code.highcharts.com/highcharts.js"></script>
+<script src="https://code.highcharts.com/modules/exporting.js"></script>
+<!-- optional -->
+<script src="https://code.highcharts.com/modules/offline-exporting.js"></script>
+<script src="https://code.highcharts.com/modules/export-data.js"></script>
 </head>
 <body style='background-color: #EEEEEE;'>
 
@@ -27,6 +31,7 @@
   <label for="ki">Ki:</label>
   <input type="number" id="ki" name="quantity" step="0.000001">
 </form>
+
 
 <p><button type='button' id='BTN_SEND_BACK'>
 Send info to ESP32
@@ -92,34 +97,55 @@ window.onload = function(event) {
 }
 </script>
 
+<!--BUTTON FOR CONFIGURABLE N -->
+<form>
+<div>
+	<label for="N_datos">Cantidad de datos:</label>
+	<input type="number" id="N_datos" name="quantity" step="1" value="40">
+	<button type='button' id='update_graph'>
+	Update_graph
+	</button>
+</div>
+</form>
+
+
 <!-- // IMU GRAPH -->
 <div id="container" style="width:50%; height:300px;"></div>
 <script>
 let chart; //global chart
 let memory; //global memory
 let data; //global memory
+let N_datos;
+//Event listener for the information shown on graph
+document.getElementById('update_graph').addEventListener('click', update_graph);
+	function update_graph(ev1) {
+	//ev1.preventDefault(); //Prevents page from reloading
+	N_datos = document.getElementById('N_datos').value;	
+	}
 //ASK FOR DATA FROM localStorage EVERY SECOND
-setInterval(function requestData() {
+setInterval(function requestData() {	
 	memory = localStorage.getItem("Data_esp");
 	data = JSON.parse(memory);
 	let data_size = data.length - 1; //Size of the array
 	const point = data[data_size]; //Obtain the latest point in the graph
 	const series = chart.series[0],
-		shift = series.data.length > 40; //Start shifting data if there is more than 20 entrys
+		shift = series.data.length > N_datos; //Start shifting data if there is more than 20 entrys
 		//THE NUMBER 20 IS THE NUMBER OF DATA SHOWN IN THE GRAPH
 		
 	//add the point to the graph
 	chart.series[0].addPoint(point, true, shift);
 	
-	console.log(data);
-}, 1000);
+	//console.log(data);
+}, 500);
 
 
 document.addEventListener('DOMContentLoaded', function () {
         chart = Highcharts.chart('container', {
             chart: {
-                type: 'line',
-				zoomType: 'x'
+                type: 'spline',
+				zoomType: 'x',
+				panning: true,
+				pankey: 'shift',
             },
 			credits: {
 				enabled: false
@@ -128,16 +154,23 @@ document.addEventListener('DOMContentLoaded', function () {
             title: {
                 text: 'Angulo del balancin'
             },
+			subtitle: {
+				text: 'Click and drag to zoom in. Hold down shift key to pan.'
+			},			
             xAxis: {
                 //categories: []
+				scrollbar: {
+				enabled: true
+				}
             },
             yAxis: {
                 title: {
-                    text: 'Angulo (rad)'
+                    text: 'Angulo (deg)'
                 }
             },
             series: [{
-                name: 'Angulo (rad)',
+                name: 'Angulo Z (deg)',
+				showInNavigator: true,
                 data: [] //incoming_data
             }]
 			
