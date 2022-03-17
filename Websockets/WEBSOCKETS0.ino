@@ -1,7 +1,7 @@
 /*
  * Miniproyecto
  * Código únicamente de los websockets
- * con lecturas de sensor
+ * con lecturas de sensor y comunicación con servidor
  */
 
 //Libraries
@@ -78,17 +78,70 @@ void IMU_config();
 //****************************************************************************************
 
 
+//****************************************************************************************
+//                                TIMER0 CONFIGURATION
+hw_timer_t * timer0 = NULL; //reiniciar timer0
+portMUX_TYPE timerMux0 = portMUX_INITIALIZER_UNLOCKED;
+int interrupt_counter = 0;
 
+//INTERRUPT ON TIMER0
+void IRAM_ATTR onTimer0(){
+  //INTERRUPTION ON TIMER0
+  portENTER_CRITICAL_ISR(&timerMux0);
+  interrupt_counter++;
+  portEXIT_CRITICAL_ISR(&timerMux0);
+}
+
+//CONFIGURATION TIMER 0
+void TIMER0_CONFIG();
+
+//PID CONTROLLER
+void TIMER0_PID();
+
+//****************************************************************************************
+
+//****************************************************************************************
+//                                TIMER1 CONFIGURATION
+hw_timer_t * timer1 = NULL; //reiniciar timer1
+portMUX_TYPE timerMux1 = portMUX_INITIALIZER_UNLOCKED;
+int interrupt_counter2 = 0;
+
+//INTERRUPT ROUTINE TIMER 1
+void IRAM_ATTR onTimer1(){
+  //INTERRUPTION ON TIMER1  
+  portENTER_CRITICAL_ISR(&timerMux1);
+  interrupt_counter2++;
+  portEXIT_CRITICAL_ISR(&timerMux1);
+}
+
+//CONFIGURATION TIMER 1
+void TIMER1_CONFIG();
+
+//TIMER 1 SUBROUTINE
+void TIMER1_SERVER();
+
+//****************************************************************************************
+
+
+
+//****************************************************************************************
 //Configuration of everything
 void setup() {
   //WEBSERVER CONFIGURATION
   Webserversetup();
   //IMU CONFIGURATION
   IMU_config();
+  //TIMERS CONFIGURATION
+  TIMER0_CONFIG();
+  TIMER1_CONFIG();
   //INDICATOR LED CONFIGURATION
   pinMode(ledPin, OUTPUT);
 }
 
+//****************************************************************************************
+
+
+//****************************************************************************************
 //The actual code running in the background
 void loop() {
   //VERY IMPORTANT FOR THE CORRECT BEHAVIOUR OF THE SERVER
@@ -100,6 +153,7 @@ void loop() {
 
   //Blink BLUE BUILTIN LED
   blinkled();
+  TIMER1_SERVER();
   /*
    * HERE YOU CALL A FUNCTION TO TAKE THE DATA FROM THE SENSOR
    * TURN IT INTO A DOUBLE AND SCALE IT UP IF DESIRED
@@ -107,8 +161,18 @@ void loop() {
    * SCALE IT FROM LAST STEP TO 0-255 (DIVIDE BY 5 AND MULTIPLY BY 255)
    * CAST IT TO INTEGRER
    * USE dacWrite(DAC1, DATA)
+   * USE TIMER 0 FOR THE PID CONTROLLER
+   * USE TIMER 1 FOR SENDING DATA TO SERVER
    */
+   TIMER0_PID();
 }
+//****************************************************************************************
+
+
+
+
+
+
 
 //****************************************************************************************
 /*
@@ -122,10 +186,10 @@ void loop() {
     if (currentMillis - previousMillis >= interval) {
 
     // if the LED is off turn it on and vice-versa:
-    ledState = ~ledState;
+    
 
     // set the LED with the ledState of the variable:
-    //digitalWrite(ledPin, ledState);
+    
     
     //WEBSOCKET TEST
     String jsonString ="";
@@ -176,7 +240,7 @@ void Webserversetup(){
 }
 
 //WEBPAGE TO UPLOAD THE FIRST TIME
-String webpage = "<!DOCTYPE html>\n<html>\n<head>\n<title>ESP SERVER</title>\n<script src=\"https://code.highcharts.com/highcharts.js\"></script>\n</head>\n<body style='background-color: #EEEEEE;'>\n\n<span style='color: #003366;'>\n\n<h1>ESP32 WEBSERVER FOR MPU6050</h1>\n<p>Aceleracion eje x (m/s²): <span id = 'rand1'>-</span></p>\n<p>Aceleracion eje y (m/s²): <span id = 'rand2'>-</span></p>\n<p>Aceleracion eje z (m/s²): <span id = 'rand3'>-</span></p>\n<h2>Gyro</h2>\n<p>Gyro x (rad/s): <span id = 'rand4'>-</span></p>\n<p>Gyro y (rad/s): <span id = 'rand5'>-</span></p>\n<p>Gyro z (rad/s): <span id = 'rand6'>-</span></p>\n<h1>Valores PID</h1>\n\n<form>\n  <label for=\"kp\">Kp:</label>\n  <input type=\"number\" id=\"kp\" name=\"quantity\" step=\"0.000001\">\n  <label for=\"kd\">Kd:</label>\n  <input type=\"number\" id=\"kd\" name=\"quantity\" step=\"0.000001\">\n  <label for=\"ki\">Ki:</label>\n  <input type=\"number\" id=\"ki\" name=\"quantity\" step=\"0.000001\">\n</form>\n\n<p><button type='button' id='BTN_SEND_BACK'>\nSend info to ESP32\n</button></p>\n</span>\n<!-- AJAX CODE TO SEND INFORMATION TO ESP32 -->\n<script>\n//INCOMING DATA ARRAY\n/*\tThis array has to go to local webpage storage to be used later in the graph\n *\tThen it needs to be downloadable\n */\nlet incoming_data = [];\n//WEBSOCKET CODE\nvar Socket;\ndocument.getElementById('BTN_SEND_BACK').addEventListener('click', button_send_back);\nfunction init() {\n\tSocket = new WebSocket('ws://' + window.location.hostname + ':81/');\n\tSocket.onmessage = function(event) {\n\t\tprocessCommand(event);\n\t};\n}\nfunction button_send_back(ev){\n\tev.preventDefault(); //To prevent the form from reloading and reseting the input boxes\n\tvar guitar = {\n\tbrand: 'Gibson',\n\ttype: 'Les Paul Studio',\n\tyear: 2010,\n\tcolor: 'white'\n\t};\n\tlet PID = {\n\t\tkp: document.getElementById('kp').value,\n\t\tkd: document.getElementById('kd').value,\n\t\tki: document.getElementById('ki').value\n\t};\n\tSocket.send(JSON.stringify(PID));\n\tconsole.log(PID);\n}\nfunction processCommand(event){\n\tvar obj = JSON.parse(event.data);\t\n\tdocument.getElementById('rand1').innerHTML = obj.rand1;\n\tdocument.getElementById('rand2').innerHTML = obj.rand2;\n\tdocument.getElementById('rand3').innerHTML = obj.rand3;\n\tdocument.getElementById('rand4').innerHTML = obj.rand4;\n\tdocument.getElementById('rand5').innerHTML = obj.rand5;\n\tdocument.getElementById('rand6').innerHTML = obj.rand6;\n\t//Put the incoming sensor values to an array for easier graphing\n\tincoming_data.push(obj.rand7);\n\t//incoming_data.push(obj.rand2); //just grahping the pitch angle\n\t//console.log(incoming_data);\n\t//console.log(obj.rand1);\n\t//console.log(obj.rand2);\n\t\n\t//SAVING TO localStorage\n\t//THE JSON OBJECT NEEDS TO BE A STRING\n\t//REMEMBER TO PARSE IT WHEN YOU GET IT \n\t//let variable = localStorage.getItem(\"name_of_data\");\n\t//let object = JSON.parse(variable);\n\t//NOW YOU CAN USE THE DATA INSIDE OF THE OBJECT IN YOUR CODE\n\tlocalStorage.setItem(\"Data_esp\", JSON.stringify(incoming_data));\n}\nwindow.onload = function(event) {\n\tinit();\n}\n</script>\n\n<!-- // IMU GRAPH -->\n<div id=\"container\" style=\"width:50%; height:300px;\"></div>\n<script>\nlet chart; //global chart\nlet memory; //global memory\nlet data; //global memory\n//ASK FOR DATA FROM localStorage EVERY SECOND\nsetInterval(function requestData() {\n\tmemory = localStorage.getItem(\"Data_esp\");\n\tdata = JSON.parse(memory);\n\tlet data_size = data.length - 1; //Size of the array\n\tconst point = data[data_size]; //Obtain the latest point in the graph\n\tconst series = chart.series[0],\n\t\tshift = series.data.length > 40; //Start shifting data if there is more than 20 entrys\n\t\t//THE NUMBER 20 IS THE NUMBER OF DATA SHOWN IN THE GRAPH\n\t\t\n\t//add the point to the graph\n\tchart.series[0].addPoint(point, true, shift);\n\t\n\tconsole.log(data);\n}, 1000);\n\n\ndocument.addEventListener('DOMContentLoaded', function () {\n        chart = Highcharts.chart('container', {\n            chart: {\n                type: 'line',\n\t\t\t\tzoomType: 'x'\n            },\n\t\t\tcredits: {\n\t\t\t\tenabled: false\n\t\t\t}\n\t\t\t,\n            title: {\n                text: 'Angulo del balancin'\n            },\n            xAxis: {\n                //categories: []\n            },\n            yAxis: {\n                title: {\n                    text: 'Angulo (rad)'\n                }\n            },\n            series: [{\n                name: 'Angulo (rad)',\n                data: [] //incoming_data\n            }]\n\t\t\t\n        });\n    });\n\n</script>\n\n</body>\n</html>";
+String webpage = "<!DOCTYPE html>\n<html>\n<head>\n<title>ESP SERVER</title>\n<script src=\"https://code.highcharts.com/highcharts.js\"></script>\n</head>\n<body style='background-color: #EEEEEE;'>\n\n<span style='color: #003366;'>\n\n<h1>ESP32 WEBSERVER FOR MPU6050</h1>\n<p>Datos normalizados a g=9.81</p>\n<p>Aceleracion eje x (m/s²): <span id = 'rand1'>-</span></p>\n<p>Aceleracion eje y (m/s²): <span id = 'rand2'>-</span></p>\n<p>Aceleracion eje z (m/s²): <span id = 'rand3'>-</span></p>\n<h2>Gyro</h2>\n<p>Gyro x (rad/s): <span id = 'rand4'>-</span></p>\n<p>Gyro y (rad/s): <span id = 'rand5'>-</span></p>\n<p>Gyro z (rad/s): <span id = 'rand6'>-</span></p>\n<h1>Valores PID</h1>\n\n<form>\n  <label for=\"kp\">Kp:</label>\n  <input type=\"number\" id=\"kp\" name=\"quantity\" step=\"0.000001\">\n  <label for=\"kd\">Kd:</label>\n  <input type=\"number\" id=\"kd\" name=\"quantity\" step=\"0.000001\">\n  <label for=\"ki\">Ki:</label>\n  <input type=\"number\" id=\"ki\" name=\"quantity\" step=\"0.000001\">\n</form>\n\n<p><button type='button' id='BTN_SEND_BACK'>\nSend info to ESP32\n</button></p>\n</span>\n<!-- AJAX CODE TO SEND INFORMATION TO ESP32 -->\n<script>\n//INCOMING DATA ARRAY\n/*\tThis array has to go to local webpage storage to be used later in the graph\n *\tThen it needs to be downloadable\n */\nlet incoming_data = [];\n//WEBSOCKET CODE\nvar Socket;\ndocument.getElementById('BTN_SEND_BACK').addEventListener('click', button_send_back);\nfunction init() {\n\tSocket = new WebSocket('ws://' + window.location.hostname + ':81/');\n\tSocket.onmessage = function(event) {\n\t\tprocessCommand(event);\n\t};\n}\nfunction button_send_back(ev){\n\tev.preventDefault(); //To prevent the form from reloading and reseting the input boxes\n\tvar guitar = {\n\tbrand: 'Gibson',\n\ttype: 'Les Paul Studio',\n\tyear: 2010,\n\tcolor: 'white'\n\t};\n\tlet PID = {\n\t\tkp: document.getElementById('kp').value,\n\t\tkd: document.getElementById('kd').value,\n\t\tki: document.getElementById('ki').value\n\t};\n\tSocket.send(JSON.stringify(PID));\n\tconsole.log(PID);\n}\nfunction processCommand(event){\n\tvar obj = JSON.parse(event.data);\t\n\tdocument.getElementById('rand1').innerHTML = obj.rand1;\n\tdocument.getElementById('rand2').innerHTML = obj.rand2;\n\tdocument.getElementById('rand3').innerHTML = obj.rand3;\n\tdocument.getElementById('rand4').innerHTML = obj.rand4;\n\tdocument.getElementById('rand5').innerHTML = obj.rand5;\n\tdocument.getElementById('rand6').innerHTML = obj.rand6;\n\t//Put the incoming sensor values to an array for easier graphing\n\tincoming_data.push(obj.rand7);\n\t//incoming_data.push(obj.rand2); //just grahping the pitch angle\n\t//console.log(incoming_data);\n\t//console.log(obj.rand1);\n\t//console.log(obj.rand2);\n\t\n\t//SAVING TO localStorage\n\t//THE JSON OBJECT NEEDS TO BE A STRING\n\t//REMEMBER TO PARSE IT WHEN YOU GET IT \n\t//let variable = localStorage.getItem(\"name_of_data\");\n\t//let object = JSON.parse(variable);\n\t//NOW YOU CAN USE THE DATA INSIDE OF THE OBJECT IN YOUR CODE\n\tlocalStorage.setItem(\"Data_esp\", JSON.stringify(incoming_data));\n}\nwindow.onload = function(event) {\n\tinit();\n}\n</script>\n\n<!-- // IMU GRAPH -->\n<div id=\"container\" style=\"width:50%; height:300px;\"></div>\n<script>\nlet chart; //global chart\nlet memory; //global memory\nlet data; //global memory\n//ASK FOR DATA FROM localStorage EVERY SECOND\nsetInterval(function requestData() {\n\tmemory = localStorage.getItem(\"Data_esp\");\n\tdata = JSON.parse(memory);\n\tlet data_size = data.length - 1; //Size of the array\n\tconst point = data[data_size]; //Obtain the latest point in the graph\n\tconst series = chart.series[0],\n\t\tshift = series.data.length > 40; //Start shifting data if there is more than 20 entrys\n\t\t//THE NUMBER 20 IS THE NUMBER OF DATA SHOWN IN THE GRAPH\n\t\t\n\t//add the point to the graph\n\tchart.series[0].addPoint(point, true, shift);\n\t\n\t//console.log(data);\n}, 1000);\n\n\ndocument.addEventListener('DOMContentLoaded', function () {\n        chart = Highcharts.chart('container', {\n            chart: {\n                type: 'line',\n\t\t\t\tzoomType: 'x'\n            },\n\t\t\tcredits: {\n\t\t\t\tenabled: false\n\t\t\t}\n\t\t\t,\n            title: {\n                text: 'Angulo del balancin'\n            },\n            xAxis: {\n                //categories: []\n            },\n            yAxis: {\n                title: {\n                    text: 'Angulo (rad)'\n                }\n            },\n            series: [{\n                name: 'Angulo (rad)',\n                data: [] //incoming_data\n            }]\n\t\t\t\n        });\n    });\n\n</script>\n\n</body>\n</html>";
 
 //****************************************************************************************
 
@@ -273,3 +337,41 @@ void IMU_config(){
  * The angle of reference is -1.9 degrees on Z. (horizontal position)
  */
 //****************************************************************************************
+//                    TIMER CONFIG
+
+void TIMER0_CONFIG(){
+  //CONFIG TIMER0
+  Serial.println("start timer0");
+  timer0 = timerBegin(0, 80, true);
+  timerAttachInterrupt(timer0, &onTimer0, true);
+  timerAlarmWrite(timer0, 1000000, true);
+  timerAlarmEnable(timer0);
+}
+
+void TIMER1_CONFIG(){
+  //CONFIG TIMER1
+  Serial.println("start timer1");
+  timer1 = timerBegin(1, 80, true);  // timer 1, MWDT clock period = 12.5 ns * TIMGn_Tx_WDT_CLK_PRESCALE -> 12.5 ns * 80 -> 1000 ns = 1 us, countUp
+  timerAttachInterrupt(timer1, &onTimer1, true); // edge (not level) triggered 
+  timerAlarmWrite(timer1, 4000000, true); // 250000 * 1 us = 250 ms, autoreload true
+  timerAlarmEnable(timer1);
+}
+
+//****************************************************************************************
+//                    TIMER PID AND SERVER
+void TIMER1_SERVER() {
+  if (interrupt_counter2==1) {
+    Serial.println("onTimer1: Server");
+    interrupt_counter2 = 0;
+  }
+    
+}
+
+void TIMER0_PID() {
+  if (interrupt_counter==1) {
+    ledState = ~ledState;
+    digitalWrite(ledPin, ledState);
+    interrupt_counter = 0;
+  }
+  
+}
