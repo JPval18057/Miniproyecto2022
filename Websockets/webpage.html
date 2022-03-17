@@ -9,13 +9,14 @@
 <span style='color: #003366;'>
 
 <h1>ESP32 WEBSERVER FOR MPU6050</h1>
-<p>Angulo normalizado eje y: <span id = 'rand1'>-</span></p>
-<p>Angulo normalizado eje x: <span id = 'rand2'>-</span></p>
-<p>Angulo normalizado eje z: <span id = 'rand3'>-</span></p>
+<p>Datos normalizados a g=9.81</p>
+<p>Aceleracion eje x (m/s²): <span id = 'rand1'>-</span></p>
+<p>Aceleracion eje y (m/s²): <span id = 'rand2'>-</span></p>
+<p>Aceleracion eje z (m/s²): <span id = 'rand3'>-</span></p>
 <h2>Gyro</h2>
-<p>Gyro x (rad/s): <span id = 'rand2'>-</span></p>
-<p>Gyro y (rad/s): <span id = 'rand2'>-</span></p>
-<p>Gyro z (rad/s): <span id = 'rand2'>-</span></p>
+<p>Gyro x (rad/s): <span id = 'rand4'>-</span></p>
+<p>Gyro y (rad/s): <span id = 'rand5'>-</span></p>
+<p>Gyro z (rad/s): <span id = 'rand6'>-</span></p>
 <h1>Valores PID</h1>
 
 <form>
@@ -67,9 +68,13 @@ function processCommand(event){
 	var obj = JSON.parse(event.data);	
 	document.getElementById('rand1').innerHTML = obj.rand1;
 	document.getElementById('rand2').innerHTML = obj.rand2;
+	document.getElementById('rand3').innerHTML = obj.rand3;
+	document.getElementById('rand4').innerHTML = obj.rand4;
+	document.getElementById('rand5').innerHTML = obj.rand5;
+	document.getElementById('rand6').innerHTML = obj.rand6;
 	//Put the incoming sensor values to an array for easier graphing
-	incoming_data.push(obj.rand1);
-	incoming_data.push(obj.rand2);
+	incoming_data.push(obj.rand7);
+	//incoming_data.push(obj.rand2); //just grahping the pitch angle
 	//console.log(incoming_data);
 	//console.log(obj.rand1);
 	//console.log(obj.rand2);
