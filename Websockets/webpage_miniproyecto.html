@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ESP SERVER</title>
+<script src="https://code.highcharts.com/highcharts.js"></script>
+<script src="https://code.highcharts.com/modules/exporting.js"></script>
+<!-- optional -->
+<script src="https://code.highcharts.com/modules/offline-exporting.js"></script>
+<script src="https://code.highcharts.com/modules/export-data.js"></script>
+</head>
+<body style='background-color: #EEEEEE;'>
+
+<span style='color: #003366;'>
+
+<h1>ESP32 WEBSERVER FOR MPU6050</h1>
+<p>Datos normalizados a g=9.81</p>
+<p>Aceleracion eje x (m/s²): <span id = 'rand1'>-</span></p>
+<p>Aceleracion eje y (m/s²): <span id = 'rand2'>-</span></p>
+<p>Aceleracion eje z (m/s²): <span id = 'rand3'>-</span></p>
+<h2>Gyro</h2>
+<p>Gyro x (rad/s): <span id = 'rand4'>-</span></p>
+<p>Gyro y (rad/s): <span id = 'rand5'>-</span></p>
+<p>Gyro z (rad/s): <span id = 'rand6'>-</span></p>
+<h1>Valores PID</h1>
+
+<form>
+  <label for="kp">Kp:</label>
+  <input type="number" id="kp" name="quantity" step="0.000001">
+  <label for="kd">Kd:</label>
+  <input type="number" id="kd" name="quantity" step="0.000001">
+  <label for="ki">Ki:</label>
+  <input type="number" id="ki" name="quantity" step="0.000001">
+</form>
+
+
+<p><button type='button' id='BTN_SEND_BACK'>
+Send info to ESP32
+</button></p>
+</span>
+<!-- AJAX CODE TO SEND INFORMATION TO ESP32 -->
+<script>
+//INCOMING DATA ARRAY
+/*	This array has to go to local webpage storage to be used later in the graph
+ *	Then it needs to be downloadable
+ */
+let incoming_data = [];
+//WEBSOCKET CODE
+var Socket;
+document.getElementById('BTN_SEND_BACK').addEventListener('click', button_send_back);
+function init() {
+	Socket = new WebSocket('ws://' + window.location.hostname + ':81/');
+	Socket.onmessage = function(event) {
+		processCommand(event);
+	};
+}
+function button_send_back(ev){
+	ev.preventDefault(); //To prevent the form from reloading and reseting the input boxes
+	var guitar = {
+	brand: 'Gibson',
+	type: 'Les Paul Studio',
+	year: 2010,
+	color: 'white'
+	};
+	let PID = {
+		kp: document.getElementById('kp').value,
+		kd: document.getElementById('kd').value,
+		ki: document.getElementById('ki').value
+	};
+	Socket.send(JSON.stringify(PID));
+	console.log(PID);
+}
+function processCommand(event){
+	var obj = JSON.parse(event.data);	
+	document.getElementById('rand1').innerHTML = obj.rand1;
+	document.getElementById('rand2').innerHTML = obj.rand2;
+	document.getElementById('rand3').innerHTML = obj.rand3;
+	document.getElementById('rand4').innerHTML = obj.rand4;
+	document.getElementById('rand5').innerHTML = obj.rand5;
+	document.getElementById('rand6').innerHTML = obj.rand6;
+	//Put the incoming sensor values to an array for easier graphing
+	incoming_data.push(obj.rand7);
+	//incoming_data.push(obj.rand2); //just grahping the pitch angle
+	//console.log(incoming_data);
+	//console.log(obj.rand1);
+	//console.log(obj.rand2);
+	
+	//SAVING TO localStorage
+	//THE JSON OBJECT NEEDS TO BE A STRING
+	//REMEMBER TO PARSE IT WHEN YOU GET IT 
+	//let variable = localStorage.getItem("name_of_data");
+	//let object = JSON.parse(variable);
+	//NOW YOU CAN USE THE DATA INSIDE OF THE OBJECT IN YOUR CODE
+	localStorage.setItem("Data_esp", JSON.stringify(incoming_data));
+}
+window.onload = function(event) {
+	init();
+}
+</script>
+
+<!--BUTTON FOR CONFIGURABLE N -->
+<form>
+<div>
+	<label for="N_datos">Cantidad de datos:</label>
+	<input type="number" id="N_datos" name="quantity" step="1" value="40">
+	<button type='button' id='update_graph'>
+	Update_graph
+	</button>
+</div>
+</form>
+
+
+<!-- // IMU GRAPH -->
+<div id="container" style="width:50%; height:300px;"></div>
+<script>
+let chart; //global chart
+let memory; //global memory
+let data; //global memory
+let N_datos;
+//Event listener for the information shown on graph
+document.getElementById('update_graph').addEventListener('click', update_graph);
+	function update_graph(ev1) {
+	//ev1.preventDefault(); //Prevents page from reloading
+	N_datos = document.getElementById('N_datos').value;	
+	}
+//ASK FOR DATA FROM localStorage EVERY SECOND
+setInterval(function requestData() {	
+	memory = localStorage.getItem("Data_esp");
+	data = JSON.parse(memory);
+	let data_size = data.length - 1; //Size of the array
+	const point = data[data_size]; //Obtain the latest point in the graph
+	const series = chart.series[0],
+		shift = series.data.length > N_datos; //Start shifting data if there is more than 20 entrys
+		//THE NUMBER 20 IS THE NUMBER OF DATA SHOWN IN THE GRAPH
+		
+	//add the point to the graph
+	chart.series[0].addPoint(point, true, shift);
+	
+	//console.log(data);
+}, 500);
+
+
+document.addEventListener('DOMContentLoaded', function () {
+        chart = Highcharts.chart('container', {
+            chart: {
+                type: 'spline',
+				zoomType: 'x',
+				panning: true,
+				pankey: 'shift',
+            },
+			credits: {
+				enabled: false
+			}
+			,
+            title: {
+                text: 'Angulo del balancin'
+            },
+			subtitle: {
+				text: 'Click and drag to zoom in. Hold down shift key to pan.'
+			},			
+            xAxis: {
+                //categories: []
+				scrollbar: {
+				enabled: true
+				}
+            },
+            yAxis: {
+                title: {
+                    text: 'Angulo (deg)'
+                }
+            },
+            series: [{
+                name: 'Angulo Z (deg)',
+				showInNavigator: true,
+                data: [] //incoming_data
+            }]
+			
+        });
+    });
+
+</script>
+
+</body>
+</html>
