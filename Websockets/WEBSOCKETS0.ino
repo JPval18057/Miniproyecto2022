@@ -34,7 +34,7 @@ unsigned long previousMillis = 0;        // will store last time LED was updated
 const long interval = 1000;           // interval at which to blink (milliseconds)
 
 //Function declaration
-void blinkled(void);
+void blinkled();
 
 //****************************************************************************************
 //ACCESS POINT WEBSERVER
@@ -58,7 +58,7 @@ WebServer  server(80);  //80 is de default port for webservers
 WebSocketsServer webSocket = WebSocketsServer(81); //PORT 81 IS THE DEFAULT PORT FOR WS
 
 //****************************************************************************************
-//PID CONTROLLER
+//                                 PID CONTROLLER
 /*
  * create variables for ki, kp and kd
  * must be double data type
@@ -67,6 +67,33 @@ WebSocketsServer webSocket = WebSocketsServer(81); //PORT 81 IS THE DEFAULT PORT
 float kp_local = 1.0;
 float kd_local = 0.0;
 float ki_local = 0.0;
+/*
+ * This ones are not equal to the analogic constants
+ * They have to absorb Ts
+ */
+//Processing variables start at 0
+float ek = 0; //Substraction between the measurement and the reference
+float ek_1 = 0; //previous  value for ek
+float Ek = 0; //Sum of all the values of ek for the integration of ki
+float eD = 0; //delta e for the derivation
+const float ref = 0.5; //constant value, it is recomended to be a const float type
+float yk = 0; //sensor reading
+float uk = 0; //result of the diff eq
+float uk_1 = 0; //previous result of the diff eq
+
+//casting variables
+uint8_t uk_integrer = 0; //8 bit variable that writes to DAC1
+float unscale = 0; //Variable that stores the mapped value
+const float lower_limit = -70.0; //Min measurement angle (deg)
+const float high_limit = +70.0; //Max measurement angle (deg)
+
+//Process function
+void control();
+//****************************************************************************************
+
+
+
+
 //****************************************************************************************
 //                                IMU VARIABLES
 //IMU WIRE OBJECT
@@ -85,9 +112,14 @@ portMUX_TYPE timerMux0 = portMUX_INITIALIZER_UNLOCKED;
 int interrupt_counter = 0;
 
 //INTERRUPT ON TIMER0
+//TIMER0 IS THE TIMER THAT CONTROLS THE PID
 void IRAM_ATTR onTimer0(){
   //INTERRUPTION ON TIMER0
   portENTER_CRITICAL_ISR(&timerMux0);
+  /*
+   * Your code goes here
+   */
+  control();
   interrupt_counter++;
   portEXIT_CRITICAL_ISR(&timerMux0);
 }
@@ -152,7 +184,7 @@ void loop() {
   mpu.update();
 
   //Blink BLUE BUILTIN LED
-  blinkled();
+  blinkled(); //used for the initial stages but now a timer is used for more precision
   TIMER1_SERVER();
   /*
    * HERE YOU CALL A FUNCTION TO TAKE THE DATA FROM THE SENSOR
@@ -184,7 +216,8 @@ void loop() {
  void blinkled(){
   
     if (currentMillis - previousMillis >= interval) {   
-    
+    ledState = ~ledState;
+    digitalWrite(ledPin, ledState);
     // save the last time you blinked the LED
     // At the end to have the real time
     previousMillis = currentMillis;
@@ -319,21 +352,21 @@ void IMU_config(){
 
 void TIMER0_CONFIG(){
   //CONFIG TIMER0
-  //TIMER 0 IS THE PID TIMER AND NEEDS TO BE AS FAST AS POSIBLE
+  //TIMER 0 IS THE PID TIMER AND NEEDS TO BE AS FAST AS POSIBLE try a period of 1ms
   Serial.println("start timer0");
   timer0 = timerBegin(0, 80, true); // timer 0, MWDT clock period = 12.5 ns * TIMGn_Tx_WDT_CLK_PRESCALE -> 12.5 ns * 80 -> 1000 ns = 1 us, countUp
   timerAttachInterrupt(timer0, &onTimer0, true); // edge (not level) triggered 
-  timerAlarmWrite(timer0, 1000000, true); // 250000 * 1 us = 250 ms, autoreload true
+  timerAlarmWrite(timer0, 500000, true); // 250000 * 1 us = 250 ms, autoreload true
   timerAlarmEnable(timer0);
 }
 
 void TIMER1_CONFIG(){
-  //TIMER 1 SENDS DATA TO SERVER EVERY 1/2 SECOND
+  //TIMER 1 SENDS DATA TO SERVER EVERY 1 SECOND but after testing increase the frequency to 500ms
   //CONFIG TIMER1
   Serial.println("start timer1");
   timer1 = timerBegin(1, 80, true);  // timer 1, MWDT clock period = 12.5 ns * TIMGn_Tx_WDT_CLK_PRESCALE -> 12.5 ns * 80 -> 1000 ns = 1 us, countUp
   timerAttachInterrupt(timer1, &onTimer1, true); // edge (not level) triggered 
-  timerAlarmWrite(timer1, 500000, true); // 250000 * 1 us = 250 ms, autoreload true
+  timerAlarmWrite(timer1, 1000000, true); // 250000 * 1 us = 1000 ms, autoreload true
   timerAlarmEnable(timer1);
 }
 
@@ -370,9 +403,48 @@ void TIMER1_SERVER() {
 
 void TIMER0_PID() {
   if (interrupt_counter==1) {
-    ledState = ~ledState;
-    digitalWrite(ledPin, ledState);
+    /*    
+     *     CODE TO EXECUTE WITH INTERRUPT GOES HERE
+     */
     interrupt_counter = 0;
   }
   
 }
+//****************************************************************************************
+//                                   PID CONTROLLER CORE
+
+void control(){
+  //Here you scale the values
+  yk = mpu.getAngleZ(); //Get the angle value, it is already a float
+  
+  //Everything from here on has to be a float and scaled
+  //Equation of differences
+  ek = ref - yk;
+  eD = ek - ek_1;
+  Ek = Ek + ek;
+  uk = kp_local*ek + ki_local*Ek + kd_local*eD; //Difference eq for control
+  //updates in code
+  ek_1 = ek;
+    
+  //Here you convert from a float to an integrer of 8 bits
+  unscale = map(uk, lower_limit, high_limit, 0, 255); //Adjust the range
+  uk_integrer = (uint8_t) unscale; //adjust the data type
+  
+  //Use that integrer to write to DAC1
+  //ANALOG OUTPUT OF THE CONTROLLER THAT GOES INTO THE DRIVER
+  //dacWrite(DAC1, uk_integrer);
+  //Just for debugging
+  //Serial.println(uk_integrer, DEC); //show the pid result in the console
+  /*
+   * Remainder:
+   * 0 -> -6V and 255 -> 6V
+   * 127 -> 0V
+   * Always check the physical voltages to ensure best performance
+   * Check the gain
+   * Check the adjustment pot (1.65V)
+   * Check both ends of the signal 0 and 255 and make sure they are in range.
+   */
+}
+
+
+//****************************************************************************************
