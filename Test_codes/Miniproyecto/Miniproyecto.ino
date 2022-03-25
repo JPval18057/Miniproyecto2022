@@ -17,8 +17,8 @@
 
 //Variables
 // Creamos nuestra propia red -> SSID & Password
-const char* ssid = "Miniproyecto_Juampa";  
-const char* password = "miniproyecto"; // opcional softAP()
+const char* ssid = "JADSANET";  
+const char* password = "JADSA2020"; // opcional softAP()
 
 //Variables del programa
 double t0 = 0;
@@ -37,7 +37,7 @@ IPAddress subnet(255,255,255,0);    //(255, 255, 255, 0)
 */
 
 WebServer server(80);  // puerto por defecto 80
-WebSocketsServer webSocket = webSocketsServer(81); //puerto estándar para websockets
+WebSocketsServer webSocket = webSocketsServer(79); //puerto estándar para websockets
 
 
 
