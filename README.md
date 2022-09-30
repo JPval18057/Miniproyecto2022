@@ -1,7 +1,8 @@
 # Mini Project 2022
 Mini-Project
 
-This project is about a self balanced machine using an ESP32 board to coordinate, manage the control system and host a webserver responsible for the GUI using a webpage.
+This project was about a self balanced machine using an ESP32 board to coordinate, manage the control system and host a webserver responsible for the GUI using a webpage.
+The Tunning of the PID controller was done in real time while the system worked to see the changes. Another reason to do it like this was to test the communications between the GUI on the webpage and the ESP32. 
 
 To do list
 A. Create PID controller
