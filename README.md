@@ -1,7 +1,6 @@
 # Mini Project 2022
 Mini-Project
 
-Este miniproyecto es un balancín que busca automáticamente la posición de equilibrio.
 This project is about a self balanced machine using an ESP32 board to coordinate, manage the control system and host a webserver responsible for the GUI using a webpage.
 
 To do list
